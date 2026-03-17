@@ -52,9 +52,19 @@ if col2.button("⏹ Stop Tracking"):
 coords = streamlit_js_eval(
     js_expressions="""
     new Promise((resolve, reject) => {
-        if (!window.watchId) {
-            window.coords = null;
 
+        // First immediate position
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                window.coords = {
+                    lat: pos.coords.latitude,
+                    lon: pos.coords.longitude
+                };
+            }
+        );
+
+        // Continuous tracking
+        if (!window.watchId) {
             window.watchId = navigator.geolocation.watchPosition(
                 (pos) => {
                     window.coords = {
@@ -72,6 +82,7 @@ coords = streamlit_js_eval(
                 }
             );
         }
+
         resolve(window.coords);
     })
     """,
@@ -81,7 +92,7 @@ coords = streamlit_js_eval(
 # =========================
 # PROCESS DATA
 # =========================
-if coords and st.session_state.tracking:
+if coords is not None and st.session_state.tracking:
     lat = coords["lat"]
     lon = coords["lon"]
     current_time = time.time()
