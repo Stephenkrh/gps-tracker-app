@@ -6,10 +6,11 @@ import io
 from math import radians, cos, sin, asin, sqrt
 from streamlit_js_eval import streamlit_js_eval
 
+
 st.set_page_config(page_title="Live GPS Speed Tracker", layout="wide")
 
 # =========================
-# SESSION STATE INIT
+# SESSION STATE INIT (VERY IMPORTANT)
 # =========================
 if "tracking" not in st.session_state:
     st.session_state.tracking = False
@@ -26,7 +27,7 @@ st.title("🚗 Live GPS Speed Tracker")
 # HAVERSINE FUNCTION
 # =========================
 def haversine(lat1, lon1, lat2, lon2):
-    R = 6371  # km
+    R = 6371  # Earth radius in km
     dlat = radians(lat2 - lat1)
     dlon = radians(lon2 - lon1)
 
@@ -47,43 +48,22 @@ if col2.button("⏹ Stop Tracking"):
     st.session_state.tracking = False
 
 # =========================
-# GPS (CONTINUOUS TRACKING FIX)
+# GPS DATA (STABLE METHOD)
 # =========================
 coords = streamlit_js_eval(
     js_expressions="""
     new Promise((resolve, reject) => {
-
-        // First immediate position
         navigator.geolocation.getCurrentPosition(
             (pos) => {
-                window.coords = {
+                resolve({
                     lat: pos.coords.latitude,
                     lon: pos.coords.longitude
-                };
+                });
+            },
+            (err) => {
+                resolve(null);
             }
         );
-
-        // Continuous tracking
-        if (!window.watchId) {
-            window.watchId = navigator.geolocation.watchPosition(
-                (pos) => {
-                    window.coords = {
-                        lat: pos.coords.latitude,
-                        lon: pos.coords.longitude
-                    };
-                },
-                (err) => {
-                    console.log(err);
-                },
-                {
-                    enableHighAccuracy: true,
-                    maximumAge: 0,
-                    timeout: 5000
-                }
-            );
-        }
-
-        resolve(window.coords);
     })
     """,
     key="GPS"
@@ -92,7 +72,7 @@ coords = streamlit_js_eval(
 # =========================
 # PROCESS DATA
 # =========================
-if coords is not None and st.session_state.tracking:
+if coords and st.session_state.tracking:
     lat = coords["lat"]
     lon = coords["lon"]
     current_time = time.time()
@@ -105,12 +85,9 @@ if coords is not None and st.session_state.tracking:
 
         speed = (dist / dt) * 3600 if dt > 0 else 0
 
-        # Remove noise
+        # Remove noise at very low speeds
         if speed < 2:
             speed = 0
-        if speed > 150:   # spike filter
-            speed = prev["speed"]
-
     else:
         speed = 0
         dist = 0
@@ -146,26 +123,29 @@ if st.session_state.data:
     st.map(df[["lat", "lon"]])
 
     # =========================
-    # DOWNLOAD BUTTON (FIXED)
+    # SAVE EXCEL WHEN STOPPED
     # =========================
     if not st.session_state.tracking and len(df) > 0:
+        output_file = "GPS_Trip_Data.xlsx"
+        if len(df) > 0 and not st.session_state.tracking:
 
-        output = io.BytesIO()
-        df.to_excel(output, index=False, engine='openpyxl')
-        output.seek(0)
+          output = io.BytesIO()
+          df.to_excel(output, index=False, engine='openpyxl')
+          output.seek(0)
 
-        st.download_button(
-            label="📥 Download Trip Data",
-            data=output,
-            file_name="GPS_Trip_Data.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+          st.download_button(
+          label="📥 Download Trip Data",
+          data=output,
+          file_name="GPS_Trip_Data.xlsx",
+          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+         )
+        st.success(f"Trip saved as {output_file}")
 
 else:
     st.info("Click 'Start Tracking' to begin")
 
 # =========================
-# AUTO REFRESH
+# AUTO REFRESH (IMPORTANT)
 # =========================
 if st.session_state.tracking:
     time.sleep(1)
