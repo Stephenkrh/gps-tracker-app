@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import time
+import io
 from math import radians, cos, sin, asin, sqrt
 from streamlit_js_eval import streamlit_js_eval
 
@@ -125,7 +126,18 @@ if st.session_state.data:
     # =========================
     if not st.session_state.tracking and len(df) > 0:
         output_file = "GPS_Trip_Data.xlsx"
-        df.to_excel(output_file, index=False)
+        if len(df) > 0 and not st.session_state.tracking:
+
+          output = io.BytesIO()
+          df.to_excel(output, index=False, engine='openpyxl')
+          output.seek(0)
+
+          st.download_button(
+          label="📥 Download Trip Data",
+          data=output,
+          file_name="GPS_Trip_Data.xlsx",
+          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+         )
         st.success(f"Trip saved as {output_file}")
 
 else:
