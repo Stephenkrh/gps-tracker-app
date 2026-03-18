@@ -247,26 +247,78 @@ with gps_placeholder:
 
 # ✅ Read GPS from query params passed via st.query_params
 # Use a hidden text_input updated by JS postMessage listener
-gps_receiver = components.html(
+# ---- GPS component that pushes data back to Python ----
+gps_raw = components.html(
     """
     <script>
-    window.addEventListener('message', function(e) {
-        if (e.data && e.data.type === 'gps_data') {
-            // Write to sessionStorage so Streamlit can read
-            sessionStorage.setItem('gps_latest', e.data.payload);
-            // Update URL param to trigger Streamlit reread
-            const url = new URL(window.parent.location.href);
-            url.searchParams.set('gps', e.data.payload);
-            window.parent.history.replaceState({}, '', url);
+    function sendGPS() {
+        if (!navigator.geolocation) {
+            const data = 'ERROR:Geolocation not supported';
+            window.parent.postMessage(
+              { isStreamlitMessage: true, type: 'streamlit:setComponentValue', value: data },
+              '*'
+            );
+            return;
         }
-        if (e.data && e.data.type === 'gps_error') {
-            sessionStorage.setItem('gps_latest', e.data.payload);
-        }
-    });
+
+        navigator.geolocation.getCurrentPosition(
+            function(pos) {
+                var data = [
+                    pos.coords.latitude.toFixed(7),
+                    pos.coords.longitude.toFixed(7),
+                    (pos.coords.accuracy   || 0).toFixed(1),
+                    (pos.coords.speed      || 0).toFixed(3),
+                    (pos.coords.heading    || 0).toFixed(1),
+                    (pos.coords.altitude   || 0).toFixed(1),
+                    pos.timestamp
+                ].join(',');
+
+                window.parent.postMessage(
+                  { isStreamlitMessage: true, type: 'streamlit:setComponentValue', value: data },
+                  '*'
+                );
+            },
+            function(err) {
+                var msgs = {
+                    1: 'Permission denied — allow location in browser',
+                    2: 'Position unavailable — check signal',
+                    3: 'Timeout — move outdoors'
+                };
+                const data = 'ERROR:' + (msgs[err.code] || err.message);
+                window.parent.postMessage(
+                  { isStreamlitMessage: true, type: 'streamlit:setComponentValue', value: data },
+                  '*'
+                );
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 2000 }
+        );
+    }
+    sendGPS();
+    setInterval(sendGPS, 2000);
     </script>
     """,
     height=0,
 )
+
+# ---- Parse gps_raw instead of st.query_params ----
+coords = None
+if gps_raw:
+    if isinstance(gps_raw, str) and gps_raw.startswith("ERROR:"):
+        st.session_state.gps_error = gps_raw.replace("ERROR:", "")
+    else:
+        try:
+            parts = gps_raw.split(",")
+            coords = {
+                "lat":       float(parts[0]),
+                "lon":       float(parts[1]),
+                "acc":       float(parts[2]),
+                "gps_speed": float(parts[3]),
+                "heading":   float(parts[4]),
+                "altitude":  float(parts[5]),
+            }
+            st.session_state.gps_error = None
+        except Exception as e:
+            st.session_state.gps_error = f"Parse error: {e}"
 
 # ✅ Read GPS from URL query params (set by JS above)
 gps_raw = st.query_params.get("gps", None)
