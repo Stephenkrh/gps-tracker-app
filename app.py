@@ -8,25 +8,18 @@ from openpyxl.styles import PatternFill, Font, Alignment
 from datetime import datetime
 
 st.set_page_config(page_title="GPS Tracker", layout="wide")
-
 EXCEL_FILE = "GPS_Live_Data.xlsx"
 
 # =========================
 # SESSION STATE
 # =========================
-if "tracking"      not in st.session_state: st.session_state.tracking      = False
-if "data"          not in st.session_state: st.session_state.data          = []
-if "kf_speed"      not in st.session_state: st.session_state.kf_speed      = 0.0
-if "tick"          not in st.session_state: st.session_state.tick          = 0
-if "excel_ready"   not in st.session_state: st.session_state.excel_ready   = False
-if "start_time"    not in st.session_state: st.session_state.start_time    = None
-if "just_stopped"  not in st.session_state: st.session_state.just_stopped  = False
-if "last_lat"      not in st.session_state: st.session_state.last_lat      = None
-if "last_lon"      not in st.session_state: st.session_state.last_lon      = None
-if "last_acc"      not in st.session_state: st.session_state.last_acc      = None
-if "last_speed"    not in st.session_state: st.session_state.last_speed    = None
-if "last_heading"  not in st.session_state: st.session_state.last_heading  = None
-if "gps_error"     not in st.session_state: st.session_state.gps_error     = None
+for key, val in {
+    "tracking": False, "data": [], "kf_speed": 0.0,
+    "tick": 0, "excel_ready": False, "start_time": None,
+    "just_stopped": False
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = val
 
 st.title("🚗 GPS Tracker")
 
@@ -37,9 +30,10 @@ st.sidebar.markdown("### 🔍 Debug Info")
 st.sidebar.write(f"Rows in memory: **{len(st.session_state.data)}**")
 st.sidebar.write(f"Tick: **{st.session_state.tick}**")
 st.sidebar.write(f"Tracking: **{st.session_state.tracking}**")
-st.sidebar.write(f"Last Lat: **{st.session_state.last_lat}**")
-st.sidebar.write(f"Last Lon: **{st.session_state.last_lon}**")
-st.sidebar.write(f"GPS Error: **{st.session_state.gps_error}**")
+
+# Read GPS from query params FIRST (set by JS)
+gps_raw = st.query_params.get("gps", None)
+st.sidebar.write(f"GPS Raw: `{gps_raw}`")
 
 # =========================
 # HAVERSINE
@@ -52,9 +46,6 @@ def haversine(lat1, lon1, lat2, lon2):
          cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2)
     return 2 * R * asin(sqrt(a))
 
-# =========================
-# KALMAN FILTER
-# =========================
 def kalman_filter(measured, prev_estimate, R=0.5):
     K = 1.0 / (1.0 + R)
     return prev_estimate + K * (measured - prev_estimate)
@@ -62,12 +53,12 @@ def kalman_filter(measured, prev_estimate, R=0.5):
 # =========================
 # WRITE EXCEL ON STOP
 # =========================
-def write_excel_on_stop(data: list):
+def write_excel_on_stop(data):
     if not data:
         return False
     df = pd.DataFrame(data)
-    df["elapsed_sec"]      = (df["time"] - df["time"].iloc[0]).round(1)
-    df["datetime"]         = (
+    df["elapsed_sec"]       = (df["time"] - df["time"].iloc[0]).round(1)
+    df["datetime"]          = (
         pd.to_datetime(df["time"], unit='s')
           .dt.tz_localize('UTC')
           .dt.tz_convert('Asia/Kolkata')
@@ -82,40 +73,36 @@ def write_excel_on_stop(data: list):
 
     with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name="GPS Trip Data")
-        wb = writer.book
-        ws = writer.sheets["GPS Trip Data"]
-
-        hf = PatternFill("solid", fgColor="1F4E79")
-        hfont = Font(color="FFFFFF", bold=True, size=11)
+        wb  = writer.book
+        ws  = writer.sheets["GPS Trip Data"]
+        hf  = PatternFill("solid", fgColor="1F4E79")
+        hfn = Font(color="FFFFFF", bold=True, size=11)
+        lf  = PatternFill("solid", fgColor="D6E4F0")
         for cell in ws[1]:
-            cell.fill = hf
-            cell.font = hfont
+            cell.fill = hf; cell.font = hfn
             cell.alignment = Alignment(horizontal="center")
-
-        lf = PatternFill("solid", fgColor="D6E4F0")
         for i, row in enumerate(
                 ws.iter_rows(min_row=2, max_row=ws.max_row), 1):
             for cell in row:
                 cell.alignment = Alignment(horizontal="center")
                 if i % 2 == 0:
                     cell.fill = lf
-
         for col in ws.columns:
             w = max(len(str(c.value)) if c.value else 0 for c in col)
             ws.column_dimensions[col[0].column_letter].width = w + 4
 
         ws2 = wb.create_sheet("Trip Summary")
         summary = [
-            ("Trip Start",           df["datetime"].iloc[0]),
-            ("Trip End",             df["datetime"].iloc[-1]),
-            ("Total Duration (s)",   round(df["elapsed_sec"].iloc[-1], 1)),
-            ("Total Distance (km)",  round(df["total_distance_km"].iloc[-1], 3)),
-            ("Avg Speed (km/h)",     round(df["speed"].mean(), 2)),
-            ("Max Speed (km/h)",     round(df["speed"].max(), 2)),
-            ("Max Accel (m/s²)",     round(df["acc"].max(), 4)),
-            ("Total Rows",           len(df)),
+            ("Trip Start",          df["datetime"].iloc[0]),
+            ("Trip End",            df["datetime"].iloc[-1]),
+            ("Total Duration (s)",  round(df["elapsed_sec"].iloc[-1],1)),
+            ("Total Distance (km)", round(df["total_distance_km"].iloc[-1],3)),
+            ("Avg Speed (km/h)",    round(df["speed"].mean(),2)),
+            ("Max Speed (km/h)",    round(df["speed"].max(),2)),
+            ("Max Accel (m/s²)",    round(df["acc"].max(),4)),
+            ("Total Rows",          len(df)),
         ]
-        ws2.append(["Parameter", "Value"])
+        ws2.append(["Parameter","Value"])
         for cell in ws2[1]:
             cell.fill = hf
             cell.font = Font(color="FFFFFF", bold=True)
@@ -145,15 +132,14 @@ if col2.button("⏹ Stop Tracking"):
         st.session_state.just_stopped = True
 
 if col3.button("🗑 Clear Data"):
-    for key in ["data","kf_speed","tick","excel_ready",
-                "just_stopped","last_lat","last_lon",
-                "last_acc","last_speed","last_heading","gps_error"]:
-        st.session_state[key] = [] if key == "data" else None if key in [
-            "last_lat","last_lon","last_acc",
-            "last_speed","last_heading","gps_error"
-        ] else False if key in ["excel_ready","just_stopped"] else 0
+    st.session_state.data         = []
+    st.session_state.kf_speed     = 0.0
+    st.session_state.tick         = 0
+    st.session_state.excel_ready  = False
+    st.session_state.just_stopped = False
     if os.path.exists(EXCEL_FILE):
         os.remove(EXCEL_FILE)
+    st.query_params.clear()
     st.rerun()
 
 # =========================
@@ -165,142 +151,127 @@ if st.session_state.just_stopped:
     st.session_state.excel_ready  = ok
     st.session_state.just_stopped = False
     if ok:
-        st.success(f"✅ Saved {len(st.session_state.data)} rows to Excel")
+        st.success(f"✅ Saved {len(st.session_state.data)} rows")
     else:
         st.warning("⚠️ No data to save")
 
 # =========================
-# ✅ GPS VIA CUSTOM HTML COMPONENT
-# Writes GPS into a hidden Streamlit text_input
-# which Python reads back — bypasses streamlit_js_eval
+# ✅ SINGLE GPS COMPONENT
+# Directly sets URL param using window.parent.location
 # =========================
-gps_placeholder = st.empty()
+components.html(
+    f"""
+    <!DOCTYPE html>
+    <html>
+    <body style="margin:0;background:#1e1e1e;padding:8px;
+                 font-family:monospace;font-size:12px;color:#00ff88;">
+    <div id="status">⏳ Requesting GPS...</div>
 
-with gps_placeholder:
-    components.html(
-        f"""
-        <script>
-        function sendGPS() {{
-            if (!navigator.geolocation) {{
-                document.getElementById('gps_out').value = 
-                    'ERROR:Geolocation not supported';
-                triggerChange();
-                return;
-            }}
+    <script>
+    var lastGPS = "";
 
-            navigator.geolocation.getCurrentPosition(
-                function(pos) {{
-                    var data = [
-                        pos.coords.latitude.toFixed(7),
-                        pos.coords.longitude.toFixed(7),
-                        (pos.coords.accuracy   || 0).toFixed(1),
-                        (pos.coords.speed      || 0).toFixed(3),
-                        (pos.coords.heading    || 0).toFixed(1),
-                        (pos.coords.altitude   || 0).toFixed(1),
-                        pos.timestamp
-                    ].join(',');
+    function updateURL(gpsString) {{
+        try {{
+            // ✅ Directly modify parent Streamlit URL
+            var url   = new URL(window.parent.location.href);
+            url.searchParams.set('gps', gpsString);
+            window.parent.history.replaceState(null, '', url.toString());
+        }} catch(e) {{
+            document.getElementById('status').innerText 
+                = '❌ URL update failed: ' + e.message;
+        }}
+    }}
 
-                    // ✅ Send to parent Streamlit window via postMessage
-                    window.parent.postMessage({{
-                        type: 'gps_data',
-                        payload: data
-                    }}, '*');
-
-                    // ✅ Also show in iframe for debug
-                    document.getElementById('status').innerText 
-                        = '✅ GPS: ' + data;
-                }},
-                function(err) {{
-                    var msgs = {{
-                        1: 'Permission denied — allow location in browser',
-                        2: 'Position unavailable — check signal',
-                        3: 'Timeout — move outdoors'
-                    }};
-                    window.parent.postMessage({{
-                        type: 'gps_error',
-                        payload: 'ERROR:' + (msgs[err.code] || err.message)
-                    }}, '*');
-                    document.getElementById('status').innerText 
-                        = '❌ ' + (msgs[err.code] || err.message);
-                }},
-                {{
-                    enableHighAccuracy: true,
-                    timeout: 15000,
-                    maximumAge: 2000
-                }}
-            );
+    function getGPS() {{
+        if (!navigator.geolocation) {{
+            document.getElementById('status').innerText
+                = '❌ Geolocation not supported';
+            return;
         }}
 
-        // Fire immediately and every 2 seconds
-        sendGPS();
-        setInterval(sendGPS, 2000);
-        </script>
+        navigator.geolocation.getCurrentPosition(
+            function(pos) {{
+                var gpsStr = [
+                    pos.coords.latitude.toFixed(7),
+                    pos.coords.longitude.toFixed(7),
+                    (pos.coords.accuracy  || 0).toFixed(1),
+                    (pos.coords.speed     || 0).toFixed(4),
+                    (pos.coords.heading   || 0).toFixed(1),
+                    (pos.coords.altitude  || 0).toFixed(1),
+                    pos.timestamp
+                ].join(',');
 
-        <div style="font-family:monospace; padding:8px;
-                    background:#1e1e1e; color:#00ff88;
-                    border-radius:6px; font-size:12px;">
-            <span id="status">⏳ Requesting GPS permission...</span>
-        </div>
-        """,
-        height=60,
-    )
+                document.getElementById('status').innerText
+                    = '✅ GPS: ' + gpsStr;
 
-# ✅ Read GPS from query params passed via st.query_params
-# Use a hidden text_input updated by JS postMessage listener
-gps_receiver = components.html(
-    """
-    <script>
-    window.addEventListener('message', function(e) {
-        if (e.data && e.data.type === 'gps_data') {
-            // Write to sessionStorage so Streamlit can read
-            sessionStorage.setItem('gps_latest', e.data.payload);
-            // Update URL param to trigger Streamlit reread
-            const url = new URL(window.parent.location.href);
-            url.searchParams.set('gps', e.data.payload);
-            window.parent.history.replaceState({}, '', url);
-        }
-        if (e.data && e.data.type === 'gps_error') {
-            sessionStorage.setItem('gps_latest', e.data.payload);
-        }
-    });
+                // Only update if value changed
+                if (gpsStr !== lastGPS) {{
+                    lastGPS = gpsStr;
+                    updateURL(gpsStr);
+                }}
+            }},
+            function(err) {{
+                var msgs = {{
+                    1: 'Permission denied',
+                    2: 'Position unavailable',
+                    3: 'Timeout'
+                }};
+                document.getElementById('status').innerText
+                    = '❌ Error ' + err.code + ': ' 
+                      + (msgs[err.code] || err.message);
+                updateURL('ERROR:' + err.code);
+            }},
+            {{
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 2000
+            }}
+        );
+    }}
+
+    // Run immediately then every 2 seconds
+    getGPS();
+    setInterval(getGPS, 2000);
     </script>
+    </body>
+    </html>
     """,
-    height=0,
+    height=50,
 )
 
-# ✅ Read GPS from URL query params (set by JS above)
-gps_raw = st.query_params.get("gps", None)
-
-st.sidebar.write(f"GPS Raw Param: `{gps_raw}`")
-
 # =========================
-# PARSE GPS STRING
+# PARSE GPS FROM URL PARAM
 # =========================
 coords = None
-if gps_raw:
-    if gps_raw.startswith("ERROR:"):
-        st.session_state.gps_error = gps_raw.replace("ERROR:", "")
-    else:
-        try:
-            parts = gps_raw.split(",")
-            coords = {
-                "lat":       float(parts[0]),
-                "lon":       float(parts[1]),
-                "acc":       float(parts[2]),
-                "gps_speed": float(parts[3]),
-                "heading":   float(parts[4]),
-                "altitude":  float(parts[5]),
-            }
-            st.session_state.gps_error = None
-        except Exception as e:
-            st.session_state.gps_error = f"Parse error: {e}"
+gps_error = None
+
+if gps_raw and not gps_raw.startswith("ERROR:"):
+    try:
+        p = gps_raw.split(",")
+        coords = {
+            "lat":       float(p[0]),
+            "lon":       float(p[1]),
+            "acc":       float(p[2]),
+            "gps_speed": float(p[3]),
+            "heading":   float(p[4]),
+            "altitude":  float(p[5]),
+        }
+    except Exception as e:
+        gps_error = f"Parse error: {e}"
+elif gps_raw and gps_raw.startswith("ERROR:"):
+    error_codes = {
+        "ERROR:1": "Permission denied — allow location in browser",
+        "ERROR:2": "Position unavailable — check GPS signal",
+        "ERROR:3": "GPS timeout — move outdoors"
+    }
+    gps_error = error_codes.get(gps_raw, gps_raw)
 
 # =========================
 # STATUS BAR
 # =========================
 status = st.empty()
-if st.session_state.gps_error:
-    status.error(f"❌ GPS Error: {st.session_state.gps_error}")
+if gps_error:
+    status.error(f"❌ {gps_error}")
 elif coords:
     elapsed = int(time.time() - st.session_state.start_time) \
               if st.session_state.start_time else 0
@@ -308,8 +279,9 @@ elif coords:
         f"✅ GPS Lock | "
         f"Lat: {coords['lat']:.6f} | "
         f"Lon: {coords['lon']:.6f} | "
-        f"Accuracy: {coords['acc']:.1f}m | "
-        f"Tick #{st.session_state.tick} | "
+        f"Acc: {coords['acc']:.1f}m | "
+        f"Speed: {coords['gps_speed']*3.6:.1f} km/h | "
+        f"Tick: #{st.session_state.tick} | "
         f"Elapsed: {elapsed}s"
     )
 else:
@@ -319,7 +291,7 @@ else:
     )
 
 # =========================
-# APPEND ROW EVERY TICK
+# APPEND ROW EVERY 2s TICK
 # =========================
 if coords and st.session_state.tracking:
     lat       = coords["lat"]
@@ -339,16 +311,18 @@ if coords and st.session_state.tracking:
         smooth_speed = kalman_filter(raw_speed, st.session_state.kf_speed)
         st.session_state.kf_speed = smooth_speed
         acc_val = ((smooth_speed - prev["speed"]) / 3.6) / dt
-        mode    = ("Idle" if smooth_speed < 2
-                   else "Urban" if smooth_speed < 40
+        mode    = ("Idle"    if smooth_speed < 2
+                   else "Urban"   if smooth_speed < 40
                    else "Highway")
-
         new_row = {
             "time": t, "lat": round(lat,6), "lon": round(lon,6),
             "accuracy_m": round(acc,1),
-            "speed": round(smooth_speed,2), "raw_speed": round(raw_speed,2),
-            "acc": round(acc_val,4), "heading": round(heading,1),
-            "mode": mode, "distance_step": round(dist,6),
+            "speed": round(smooth_speed,2),
+            "raw_speed": round(raw_speed,2),
+            "acc": round(acc_val,4),
+            "heading": round(heading,1),
+            "mode": mode,
+            "distance_step": round(dist,6),
         }
     else:
         new_row = {
