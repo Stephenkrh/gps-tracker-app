@@ -219,7 +219,7 @@ coords = streamlit_js_eval(
             {
                 enableHighAccuracy: true,
                 timeout: 8000,                               # Time for GPS update
-                maximumAge: 2000
+                maximumAge: 4000
             }
         );
     })
@@ -358,6 +358,6 @@ else:
 # =========================
 if st.session_state.tracking:
     st.session_state.tick += 1   # ← new key → fresh GPS call
-    time.sleep(2)                                                # GPS time 
+    time.sleep(4)                                                # GPS time 
     st.rerun()
 
