@@ -7,6 +7,7 @@ from streamlit_js_eval import streamlit_js_eval
 
 st.set_page_config(page_title="Advanced GPS Tracker", layout="wide")
 
+st.write("GPS:", coords)
 # =========================
 # SESSION STATE
 # =========================
@@ -65,31 +66,32 @@ if col2.button("⏹ Stop"):
 coords = streamlit_js_eval(
     js_expressions="""
     new Promise((resolve, reject) => {
-        if (!window.coords) window.coords = null;
-
-        if (!window.watchId) {
-            window.watchId = navigator.geolocation.watchPosition(
-                (pos) => {
-                    window.coords = {
-                        lat: pos.coords.latitude,
-                        lon: pos.coords.longitude,
-                        t: Date.now()
-                    };
-                },
-                (err) => console.log(err),
-                { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
-            );
-        }
-        resolve(window.coords);
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                resolve({
+                    lat: pos.coords.latitude,
+                    lon: pos.coords.longitude,
+                    acc: pos.coords.accuracy
+                });
+            },
+            (err) => {
+                resolve(null);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 3000,
+                maximumAge: 0
+            }
+        );
     })
     """,
-    key="GPS"
+    key=str(Date.now())  // FORCE refresh
 )
 
 # =========================
 # PROCESS DATA
 # =========================
-if coords and st.session_state.tracking:
+if coords is not None and st.session_state.tracking:
 
     lat = coords["lat"]
     lon = coords["lon"]
@@ -181,5 +183,5 @@ else:
 # AUTO REFRESH (FAST)
 # =========================
 if st.session_state.tracking:
-    time.sleep(0.8)
+    time.sleep(1)
     st.rerun()
