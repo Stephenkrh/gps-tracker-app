@@ -219,7 +219,7 @@ coords = streamlit_js_eval(
             {
                 enableHighAccuracy: true,
                 timeout: 8000,                               # Time for GPS update
-                maximumAge: 4000
+                maximumAge: 0
             }
         );
     })
