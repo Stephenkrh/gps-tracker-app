@@ -79,13 +79,13 @@ coords = streamlit_js_eval(
             },
             {
                 enableHighAccuracy: true,
-                timeout: 3000,
+                timeout: 5000,
                 maximumAge: 0
             }
         );
     })
     """,
-    key=str(time.time())   
+    key="GPS"   
 )
 st.write("GPS:", coords)
 # =========================
