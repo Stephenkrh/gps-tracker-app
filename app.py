@@ -226,7 +226,11 @@ coords = streamlit_js_eval(
     """,
     key=f"GPS_{st.session_state.tick}"
 )
-
+# Add this RIGHT AFTER the streamlit_js_eval block
+st.sidebar.markdown("### 🔍 GPS Debug")
+st.sidebar.write(f"coords value: `{coords}`")
+st.sidebar.write(f"coords type: `{type(coords)}`")
+st.sidebar.write(f"tick: `{st.session_state.tick}`")
 # =========================
 # STATUS
 # =========================
