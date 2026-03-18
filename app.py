@@ -7,7 +7,7 @@ from streamlit_js_eval import streamlit_js_eval
 
 st.set_page_config(page_title="Advanced GPS Tracker", layout="wide")
 
-st.write("GPS:", coords)
+
 # =========================
 # SESSION STATE
 # =========================
