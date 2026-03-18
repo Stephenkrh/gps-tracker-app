@@ -85,9 +85,9 @@ coords = streamlit_js_eval(
         );
     })
     """,
-    key=str(Date.now())  // FORCE refresh
+    key=str(time.time())   
 )
-
+st.write("GPS:", coords)
 # =========================
 # PROCESS DATA
 # =========================
