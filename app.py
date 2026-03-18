@@ -394,34 +394,4 @@ if st.session_state.tracking:
     st.session_state.tick += 1
     time.sleep(1)
     st.rerun()
-```
 
----
-
-## What Changed
-
-| Behaviour | Before | Now |
-|---|---|---|
-| Excel write | Every second | **Only on Stop** ✅ |
-| Data collection | Every second | Every second ✅ |
-| Each row = 1 second | ✅ | ✅ |
-| Download button | Always visible | **Only appears after Stop** ✅ |
-| Summary sheet | None | **Auto-generated on Stop** ✅ |
-| New trip clears old data | No | **Yes, on Start** ✅ |
-
-## Excel Output Structure
-```
-Sheet 1: GPS Trip Data     ← one row per second
-┌──────────────┬──────────┬─────────┬───────┬────────┬─────┐
-│ Elapsed Sec  │ Datetime │  Lat    │  Lon  │ Speed  │ ... │
-│      0       │ 14:01:00 │ 13.0827 │ 80.27 │  0.00  │ ... │
-│      1       │ 14:01:01 │ 13.0828 │ 80.27 │  5.20  │ ... │
-│      2       │ 14:01:02 │ 13.0829 │ 80.27 │ 12.40  │ ... │
-└──────────────┴──────────┴─────────┴───────┴────────┴─────┘
-
-Sheet 2: Trip Summary      ← written on Stop
-┌─────────────────────┬───────────┐
-│ Total Distance (km) │   12.34   │
-│ Avg Speed (km/h)    │   38.20   │
-│ Max Speed (km/h)    │   72.10   │
-└─────────────────────┴───────────┘
