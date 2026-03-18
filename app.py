@@ -218,7 +218,7 @@ coords = streamlit_js_eval(
             (err) => resolve({ error: err.message }),
             {
                 enableHighAccuracy: true,
-                timeout: 8000,                               # Time for GPS update
+                timeout: 6000,                               # Time for GPS update
                 maximumAge: 0
             }
         );
