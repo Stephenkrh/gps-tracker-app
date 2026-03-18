@@ -358,6 +358,6 @@ else:
 # =========================
 if st.session_state.tracking:
     st.session_state.tick += 1   # ← new key → fresh GPS call
-    time.sleep(4)                                                # GPS time 
+    time.sleep(1)                                                # GPS time 
     st.rerun()
 
