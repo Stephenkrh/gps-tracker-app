@@ -315,18 +315,18 @@ if coords and st.session_state.tracking:
                    else "Urban"   if smooth_speed < 40
                    else "Highway")
         new_row = {
-            "time": t, "lat": round(lat,10), "lon": round(lon,10),
-            "accuracy_m": round(acc,1),
-            "speed": round(smooth_speed,2),
-            "raw_speed": round(raw_speed,2),
+            "time": t, "lat": round(lat,12), "lon": round(lon,12),
+            "accuracy_m": round(acc,4),
+            "speed": round(smooth_speed,4),
+            "raw_speed": round(raw_speed,4),
             "acc": round(acc_val,4),
             "heading": round(heading,1),
             "mode": mode,
-            "distance_step": round(dist,6),
+            "distance_step": round(dist,12),
         }
     else:
         new_row = {
-            "time": t, "lat": round(lat,6), "lon": round(lon,6),
+            "time": t, "lat": round(lat,12), "lon": round(lon,12),
             "accuracy_m": round(acc,1), "speed": 0.0, "raw_speed": 0.0,
             "acc": 0.0, "heading": round(heading,1),
             "mode": "Idle", "distance_step": 0.0,
